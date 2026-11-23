@@ -59,9 +59,13 @@ public class CastleSiegeRegisterMarkAction
                 return (CastleSiegeMarkRegistrationResult.IncorrectItem, guild.Name, registration.Marks);
             }
 
+            // A stack of Sign of Lord (the definition is stackable, so the item's durability is the number of pieces)
+            // counts one mark per piece: the whole item is consumed below, and a stack must not cost its player marks.
+            var pieces = signOfLord.IsStackable() ? Math.Max(1, (int)signOfLord.Durability) : 1;
+
             // Persist first so a failed registration never consumes the player's item. If item removal fails afterward,
             // the durable mark is preferred over losing an item without receiving credit.
-            if (await context.IncrementMarksAsync(registration).ConfigureAwait(false) is not { } marks)
+            if (await context.IncrementMarksAsync(registration, pieces).ConfigureAwait(false) is not { } marks)
             {
                 return (CastleSiegeMarkRegistrationResult.GuildNotRegistered, guild.Name, registration.Marks);
             }

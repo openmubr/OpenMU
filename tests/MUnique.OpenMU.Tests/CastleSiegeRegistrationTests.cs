@@ -226,6 +226,63 @@ public class CastleSiegeRegistrationTests
     }
 
     /// <summary>
+    /// Verifies that a stack of Sign of Lord (item durability = number of pieces) counts one mark per piece, so
+    /// submitting a stack, which consumes the whole item, does not cost the guild marks.
+    /// </summary>
+    [Test]
+    public async ValueTask MarkRegistrationCountsEveryPieceOfAStackedSignOfLordAsync()
+    {
+        const byte itemSlot = 20;
+        var fixture = await CreateRegisteredFixtureAsync().ConfigureAwait(false);
+        fixture.Context.SetPeriod(fixture.Context.Schedule.GetCurrentPeriod(new DateTime(2026, 8, 4, 12, 0, 0, DateTimeKind.Utc)));
+        fixture.CastleSiegeConfiguration.SignOfLordItemDefinition!.Durability = 255;
+        var stack = fixture.Player.PersistenceContext.CreateNew<Item>();
+        stack.Definition = fixture.CastleSiegeConfiguration.SignOfLordItemDefinition;
+        stack.Level = fixture.CastleSiegeConfiguration.SignOfLordItemLevel;
+        stack.Durability = 5;
+        await fixture.Player.Inventory!.AddItemAsync(itemSlot, stack).ConfigureAwait(false);
+
+        await new CastleSiegeRegisterMarkAction().RegisterMarkAsync(fixture.Player, fixture.Context, itemSlot).ConfigureAwait(false);
+
+        Mock.Get(fixture.Player.ViewPlugIns.GetPlugIn<ICastleSiegeMarkRegistrationResultPlugIn>()!).Verify(
+            plugIn => plugIn.ShowMarkRegistrationResultAsync(CastleSiegeMarkRegistrationResult.Success, GuildName, 5),
+            Times.Once);
+        using var persistenceContext = fixture.PersistenceContextProvider.CreateNewTypedContext(
+            typeof(CastleSiegeGuildRegistration),
+            false,
+            fixture.GameConfiguration);
+        var registration = (await persistenceContext.GetAsync<CastleSiegeGuildRegistration>().ConfigureAwait(false)).Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(fixture.Player.Inventory.GetItem(itemSlot), Is.Null);
+            Assert.That(fixture.Context.RegisteredGuilds[fixture.PersistentGuildId].Marks, Is.EqualTo(5));
+            Assert.That(registration.Marks, Is.EqualTo(5));
+        });
+    }
+
+    /// <summary>
+    /// Verifies that an item whose definition is not stackable counts one mark whatever its durability says.
+    /// </summary>
+    [Test]
+    public async ValueTask MarkRegistrationCountsOneMarkWhenTheDefinitionIsNotStackableAsync()
+    {
+        const byte itemSlot = 20;
+        var fixture = await CreateRegisteredFixtureAsync().ConfigureAwait(false);
+        fixture.Context.SetPeriod(fixture.Context.Schedule.GetCurrentPeriod(new DateTime(2026, 8, 4, 12, 0, 0, DateTimeKind.Utc)));
+        fixture.CastleSiegeConfiguration.SignOfLordItemDefinition!.Durability = 1;
+        var item = fixture.Player.PersistenceContext.CreateNew<Item>();
+        item.Definition = fixture.CastleSiegeConfiguration.SignOfLordItemDefinition;
+        item.Level = fixture.CastleSiegeConfiguration.SignOfLordItemLevel;
+        item.Durability = 5;
+        await fixture.Player.Inventory!.AddItemAsync(itemSlot, item).ConfigureAwait(false);
+
+        await new CastleSiegeRegisterMarkAction().RegisterMarkAsync(fixture.Player, fixture.Context, itemSlot).ConfigureAwait(false);
+
+        Assert.That(fixture.Context.RegisteredGuilds[fixture.PersistentGuildId].Marks, Is.EqualTo(1));
+        Assert.That(fixture.Player.Inventory.GetItem(itemSlot), Is.Null);
+    }
+
+    /// <summary>
     /// Verifies that a Sign of Lord is preserved if the persistent guild registration disappeared.
     /// </summary>
     [Test]

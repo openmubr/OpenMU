@@ -872,8 +872,9 @@ public class CastleSiegeContext : IEventStateProvider
     /// Increments and persists the submitted mark count.
     /// </summary>
     /// <param name="registration">The registration.</param>
+    /// <param name="amount">How many marks to add; more than one when a stack of Sign of Lord is submitted at once.</param>
     /// <returns>The updated mark count, or <see langword="null"/> if the registration no longer exists.</returns>
-    internal async ValueTask<int?> IncrementMarksAsync(CastleSiegeGuildRegistration registration)
+    internal async ValueTask<int?> IncrementMarksAsync(CastleSiegeGuildRegistration registration, int amount = 1)
     {
         using var context = this._gameContext.PersistenceContextProvider.CreateNewTypedContext(
             typeof(CastleSiegeGuildRegistration),
@@ -885,7 +886,7 @@ public class CastleSiegeContext : IEventStateProvider
             return null;
         }
 
-        persistentRegistration.Marks++;
+        persistentRegistration.Marks += Math.Max(1, amount);
         await context.SaveChangesAsync().ConfigureAwait(false);
         registration.Marks = persistentRegistration.Marks;
         return registration.Marks;
